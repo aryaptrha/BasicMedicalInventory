@@ -1,0 +1,244 @@
+@model InitialSetupMVC.Models.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0" style="font-weight: 700;">Inventory Dashboard</h1>
+        <p class="text-secondary mb-0" style="font-size: 0.9rem;">Real-time overview of pharmaceutical stocks, expiry tracking, and distribution approvals.</p>
+    </div>
+</div>
+
+<!-- KPI Mini Widgets -->
+<div class="kpi-row mb-4">
+    <!-- Total Stock -->
+    <div class="kpi-card">
+        <div class="kpi-card-header">
+            <span>Total Medicine Stock</span>
+            <i class="bi bi-box-seam kpi-card-icon"></i>
+        </div>
+        <div class="kpi-card-value text-info">@Model.TotalStock</div>
+        <div class="kpi-card-footer">Across all registered products</div>
+    </div>
+
+    <!-- Low Stock (Stock < 10) -->
+    <div class="kpi-card">
+        <div class="kpi-card-header">
+            <span>Low Stock Items</span>
+            <i class="bi bi-exclamation-triangle kpi-card-icon"></i>
+        </div>
+        <div class="kpi-card-value @(Model.LowStockCount > 0 ? "text-warning" : "text-success")">
+            @Model.LowStockCount
+        </div>
+        <div class="kpi-card-footer">Products with less than 10 units</div>
+    </div>
+
+    <!-- Near Expired (Exp <= H+7) -->
+    <div class="kpi-card">
+        <div class="kpi-card-header">
+            <span>Near Expired</span>
+            <i class="bi bi-calendar-x kpi-card-icon"></i>
+        </div>
+        <div class="kpi-card-value @(Model.NearExpiredCount > 0 ? "text-danger" : "text-success")">
+            @Model.NearExpiredCount
+        </div>
+        <div class="kpi-card-footer">Expiring within 7 days</div>
+    </div>
+
+    <!-- Pending Requests -->
+    <div class="kpi-card">
+        <div class="kpi-card-header">
+            <span>Pending Approvals</span>
+            <i class="bi bi-clock-history kpi-card-icon"></i>
+        </div>
+        <div class="kpi-card-value text-info">@Model.PendingRequestsCount</div>
+        <div class="kpi-card-footer">Requiring Admin or Dist. sign-off</div>
+    </div>
+</div>
+
+<!-- Analytics Charts Grid -->
+<div class="db-grid-half mb-4">
+    <!-- Stock Distribution Chart -->
+    <div class="clinical-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="h6 mb-0" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Stock Quantity Distribution</h3>
+        </div>
+        <div style="position: relative; height: 260px;">
+            <canvas id="stockChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Expiry Monitoring Chart -->
+    <div class="clinical-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="h6 mb-0" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Expiry Health Monitoring</h3>
+        </div>
+        <div style="position: relative; height: 260px;">
+            <canvas id="expiryChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Requests Widget -->
+<div class="clinical-card">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 class="h6 mb-0" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Recent Request Log</h3>
+        
+        @if (User.IsInRole("External User"))
+        {
+            <a asp-controller="Request" asp-action="Create" class="btn btn-sm btn-clinical">
+                <i class="bi bi-plus-lg"></i> New Request
+            </a>
+        }
+        else if (User.IsInRole("Admin") || User.IsInRole("User Distribution"))
+        {
+            <a asp-controller="Approval" asp-action="Index" class="btn btn-sm btn-clinical">
+                <i class="bi bi-shield-check"></i> Review Queue
+            </a>
+        }
+    </div>
+    
+    <div class="clinical-table-wrapper">
+        <table class="clinical-table">
+            <thead>
+                <tr>
+                    <th>Request No.</th>
+                    <th>Requestor</th>
+                    <th>Request Date</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Total Items</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.RecentRequests.Any())
+                {
+                    foreach (var req in Model.RecentRequests)
+                    {
+                        <tr>
+                            <td class="font-monospace" style="font-weight: 600;">@req.RequestNumber</td>
+                            <td>@req.UserFullName</td>
+                            <td>@req.RequestDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                <span class="badge-solid @(
+                                    req.Status == "Delivered" || req.Status == "Fully Approved" ? "badge-success" :
+                                    req.Status.StartsWith("Rejected") ? "badge-danger" :
+                                    req.Status == "Submitted" || req.Status == "Approved By Admin" ? "badge-warning" : "badge-info"
+                                )">
+                                    <i class="bi @(
+                                        req.Status == "Delivered" ? "bi-truck" :
+                                        req.Status == "Fully Approved" ? "bi-check-circle" :
+                                        req.Status.StartsWith("Rejected") ? "bi-x-circle" : "bi-hourglass-split"
+                                    )"></i>
+                                    @req.Status
+                                </span>
+                            </td>
+                            <td style="text-align: right; font-weight: 500;">@req.Details.Sum(d => d.Qty)</td>
+                            <td style="text-align: right;">
+                                <a asp-controller="Request" asp-action="Index" class="btn btn-clinical-outline" style="padding: 4px 8px; font-size: 0.75rem;">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted" style="padding: 24px;">No requests found.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let stockChart = null;
+            let expiryChart = null;
+
+            // Compute colors (Light mode only)
+            function getChartColors() {
+                return {
+                    text: '#475569',
+                    grid: '#e2e8f0',
+                    border: '#ffffff',
+                    
+                    // Specific solid non-pastel colors
+                    teal: '#0d9488',     // Normal stock
+                    amber: '#d97706',    // Low stock
+                    red: '#dc2626',      // Near expired
+                    green: '#16a34a'     // Safe expiration
+                };
+            }
+
+            function drawCharts() {
+                const colors = getChartColors();
+
+                // 1. Stock Ratio Chart (Low Stock vs Available Stock)
+                const ctxStock = document.getElementById('stockChart').getContext('2d');
+                stockChart = new Chart(ctxStock, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Available Stock (>= 10)', 'Low Stock (< 10)'],
+                        datasets: [{
+                            data: [@Model.NormalStockCount, @Model.LowStockCount],
+                            backgroundColor: [colors.teal, colors.amber],
+                            borderColor: colors.border,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: colors.text,
+                                    font: { family: 'Inter', size: 12 }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 2. Expiry Status Chart (Safe vs Near Expired)
+                const ctxExpiry = document.getElementById('expiryChart').getContext('2d');
+                expiryChart = new Chart(ctxExpiry, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Safe Expiry (> 7 days)', 'Near Expired (<= 7 days)'],
+                        datasets: [{
+                            data: [@Model.SafeExpiredCount, @Model.NearExpiredCount],
+                            backgroundColor: [colors.green, colors.red],
+                            borderColor: colors.border,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: colors.text,
+                                    font: { family: 'Inter', size: 12 }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            drawCharts();
+        });
+    </script>
+}

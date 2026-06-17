@@ -1,0 +1,348 @@
+@model List<InitialSetupMVC.Models.Request>
+@using InitialSetupMVC.Models
+@{
+    ViewData["Title"] = "Approval Queue";
+    var currentRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    var logs = ViewBag.Logs as List<ApprovalLog> ?? new List<ApprovalLog>();
+
+    // Filter "Action Required" requests based on active preview role
+    var pendingRequests = new List<Request>();
+    if (currentRole == "Admin")
+    {
+        pendingRequests = Model.Where(r => r.Status == "Submitted").ToList();
+    }
+    else if (currentRole == "User Distribution")
+    {
+        pendingRequests = Model.Where(r => r.Status == "Approved By Admin" || r.Status == "Fully Approved").ToList();
+    }
+}
+
+<!-- Page Header -->
+<div class="mb-4">
+    <h1 class="h3 mb-0" style="font-weight: 700;">Approval Board</h1>
+    <p class="text-secondary mb-0" style="font-size: 0.9rem;">Review incoming drug request orders, check stock levels, and sign off on distributions.</p>
+</div>
+
+<!-- Tabs layout -->
+<div class="row g-4">
+    <!-- Action Required Queue -->
+    <div class="col-12 col-xl-8">
+        <div class="clinical-card">
+            <h3 class="h6 mb-3" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">
+                Action Required (@pendingRequests.Count)
+            </h3>
+            
+            <div class="clinical-table-wrapper">
+                <table class="clinical-table">
+                    <thead>
+                        <tr>
+                            <th>Request No.</th>
+                            <th>Requestor</th>
+                            <th>Request Date</th>
+                            <th>Current Status</th>
+                            <th style="text-align: right;">Units</th>
+                            <th style="text-align: right; width: 140px;">Review Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (pendingRequests.Any())
+                        {
+                            foreach (var req in pendingRequests)
+                            {
+                                <tr>
+                                    <td class="font-monospace" style="font-weight: 600;">@req.RequestNumber</td>
+                                    <td>@req.UserFullName</td>
+                                    <td>@req.RequestDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>
+                                        <span class="badge-solid @(req.Status == "Submitted" ? "badge-warning" : "badge-info")">
+                                            <i class="bi bi-hourglass-split"></i> @req.Status
+                                        </span>
+                                    </td>
+                                    <td style="text-align: right; font-weight: 500;">@req.Details.Sum(d => d.Qty)</td>
+                                    <td style="text-align: right;">
+                                        <button type="button" class="btn btn-clinical" style="padding: 4px 10px; font-size: 0.75rem;" onclick="openReviewModal(@req.Id)">
+                                            <i class="bi bi-shield-lock"></i> Review
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted" style="padding: 32px;">
+                                    <i class="bi bi-check2-all d-block fs-3 mb-2" style="color: var(--status-success);"></i>
+                                    No requests pending your review. Switch roles in the header to view other queues.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live System Log Feed -->
+    <div class="col-12 col-xl-4">
+        <div class="clinical-card h-100">
+            <h3 class="h6 mb-3" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">
+                Approval History Log
+            </h3>
+            
+            <div class="d-flex flex-column gap-3" style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
+                @if (logs.Any())
+                {
+                    foreach (var log in logs)
+                    {
+                        var badgeColor = "badge-info";
+                        var iconClass = "bi-file-earmark-arrow-up";
+                        
+                        if (log.ActionType.Contains("Approved")) { badgeColor = "badge-success"; iconClass = "bi-check-circle-fill"; }
+                        else if (log.ActionType.Contains("Rejected")) { badgeColor = "badge-danger"; iconClass = "bi-x-circle-fill"; }
+                        else if (log.ActionType == "Delivered") { badgeColor = "badge-success"; iconClass = "bi-truck"; }
+
+                        <div class="p-3 border rounded" style="background-color: var(--bg-body); border-color: var(--border-color) !important; font-size: 0.8rem;">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="badge-solid @badgeColor" style="font-size: 0.65rem; padding: 2px 6px;">
+                                    <i class="bi @iconClass"></i> @log.ActionType
+                                </span>
+                                <span class="text-muted" style="font-size: 0.7rem;">@log.ActionDate.ToString("MM-dd HH:mm")</span>
+                            </div>
+                            <div class="mb-1" style="font-weight: 600;">Request: #@log.RequestNumber</div>
+                            <div class="mb-1 text-secondary">By: <strong>@log.ActionByName</strong> (@log.ActionByRole)</div>
+                            @if (!string.IsNullOrWhiteSpace(log.Remarks))
+                            {
+                                <div class="p-2 border rounded mt-2 text-muted" style="background-color: var(--bg-surface); font-size: 0.75rem;">
+                                    @log.Remarks
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="text-center text-muted p-4">No audit logs recorded.</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Review & Action Dialog -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewModalLabel" style="font-weight: 700;">Review Request: <span id="revRequestNo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: grayscale(1) invert(0.5);"></button>
+            </div>
+            
+            <div class="modal-body d-flex flex-column gap-3">
+                <!-- Requestor Meta -->
+                <div class="row g-2 p-2 border rounded" style="background-color: var(--bg-body); border-color: var(--border-color) !important; font-size: 0.8rem;">
+                    <div class="col-4">
+                        <span class="text-muted d-block" style="font-size: 0.7rem; font-weight:600;">REQUESTOR</span>
+                        <strong id="revUserFullName"></strong>
+                    </div>
+                    <div class="col-4">
+                        <span class="text-muted d-block" style="font-size: 0.7rem; font-weight:600;">SUBMIT DATE</span>
+                        <strong id="revRequestDate"></strong>
+                    </div>
+                    <div class="col-4">
+                        <span class="text-muted d-block" style="font-size: 0.7rem; font-weight:600;">ESTIMATED VALUE</span>
+                        <strong id="revTotalValue" class="font-monospace" style="color: var(--accent-primary);"></strong>
+                    </div>
+                </div>
+
+                <!-- Remarks / History -->
+                <div class="p-2 border rounded" style="background-color: var(--bg-body); border-color: var(--border-color) !important; font-size: 0.8rem;">
+                    <span class="text-muted d-block" style="font-size: 0.7rem; font-weight:600; text-transform: uppercase;">Submission Remarks & History</span>
+                    <div id="revRemarksBody" class="d-flex flex-column gap-2 mt-2">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+
+                <!-- Items to approve -->
+                <div>
+                    <h6 class="mb-2" style="font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Requested Medicines</h6>
+                    <div class="border rounded overflow-hidden" style="border-color: var(--border-color) !important;">
+                        <table class="clinical-table mb-0">
+                            <thead>
+                                <tr style="background-color: var(--bg-body);">
+                                    <th>Medicine Name</th>
+                                    <th style="text-align: right; width: 100px;">Req Qty</th>
+                                    <th style="text-align: right; width: 120px;">Current Stock</th>
+                                    <th style="text-align: right; width: 130px;">Unit Price</th>
+                                    <th style="text-align: right; width: 130px;">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="revItemsBody">
+                                <!-- Loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Action Form -->
+                <div class="p-3 border rounded border-warning" style="background-color: var(--bg-body); border-style: solid !important;" id="approvalActionFormSection">
+                    <h6 class="mb-2" style="font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--status-warning);">Approval Action Console</h6>
+                    
+                    <form id="approvalForm" method="post" action="">
+                        <input type="hidden" id="revRequestId" name="id" />
+                        
+                        <div class="mb-3">
+                            <label for="actionRemarks" class="form-label">Reviewer Comments / Remarks</label>
+                            <textarea class="form-control w-100" id="actionRemarks" name="remarks" rows="2" placeholder="Provide reason for approval or mandatory feedback for rejection..."></textarea>
+                            <div class="text-danger mt-1" style="font-size: 0.75rem; display:none; font-weight: 600;" id="rejectRemarksWarning">
+                                Rejection remarks/reasons are mandatory.
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2" id="actionBtnContainer">
+                            <!-- Populated dynamically based on status -->
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-clinical-outline" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const requests = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model));
+        const medicines = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.Medicines));
+        const currentRole = "@currentRole";
+
+        function openReviewModal(id) {
+            const req = requests.find(r => r.Id === id);
+            if (!req) return;
+
+            document.getElementById('revRequestId').value = req.Id;
+            document.getElementById('revRequestNo').textContent = req.RequestNumber;
+            document.getElementById('revUserFullName').textContent = req.UserFullName;
+            document.getElementById('revRequestDate').textContent = new Date(req.RequestDate).toLocaleString();
+            document.getElementById('actionRemarks').value = '';
+            document.getElementById('rejectRemarksWarning').style.display = 'none';
+
+            // Populate remarks history
+            const remarksBody = document.getElementById('revRemarksBody');
+            remarksBody.innerHTML = '';
+            if (req.Logs && req.Logs.length > 0) {
+                req.Logs.forEach(l => {
+                    const div = document.createElement('div');
+                    div.className = 'p-2 border rounded';
+                    div.style.backgroundColor = 'var(--bg-surface)';
+                    div.style.borderColor = 'var(--border-color)';
+                    div.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong style="font-size: 0.75rem;">${l.ActionType} by ${l.ActionByName} (${l.ActionByRole})</strong>
+                            <span class="text-muted" style="font-size: 0.65rem;">${new Date(l.ActionDate).toLocaleString()}</span>
+                        </div>
+                        <p class="mb-0 text-secondary" style="font-size: 0.75rem;">${l.Remarks || 'No remarks provided.'}</p>
+                    `;
+                    remarksBody.appendChild(div);
+                });
+            } else {
+                remarksBody.textContent = 'No remarks recorded.';
+            }
+
+            // Populate medicines table
+            let total = 0;
+            const itemsBody = document.getElementById('revItemsBody');
+            itemsBody.innerHTML = '';
+
+            let hasStockError = false;
+
+            req.Details.forEach(d => {
+                const med = medicines.find(m => m.Id === d.MedicineId) || { StockQty: 0 };
+                const subtotal = d.Qty * d.Price;
+                total += subtotal;
+
+                const tr = document.createElement('tr');
+                let stockClass = '';
+                if (med.StockQty < d.Qty) {
+                    stockClass = 'text-danger fw-bold';
+                    hasStockError = true;
+                } else if (med.StockQty < 10) {
+                    stockClass = 'text-warning';
+                }
+
+                tr.innerHTML = `
+                    <td>${d.MedicineName}</td>
+                    <td style="text-align: right; font-weight: 500;">${d.Qty}</td>
+                    <td style="text-align: right; font-weight: 500;" class="${stockClass}">${med.StockQty}</td>
+                    <td style="text-align: right; font-weight: 500;">Rp ${d.Price.toLocaleString('id-ID')}</td>
+                    <td style="text-align: right; font-weight: 700;">Rp ${subtotal.toLocaleString('id-ID')}</td>
+                `;
+                itemsBody.appendChild(tr);
+            });
+
+            document.getElementById('revTotalValue').textContent = 'Rp ' + total.toLocaleString('id-ID', { minimumFractionDigits: 2 });
+
+            // Render buttons dynamically based on status and active preview role
+            const btnContainer = document.getElementById('actionBtnContainer');
+            btnContainer.innerHTML = '';
+            
+            const form = document.getElementById('approvalForm');
+
+            if (currentRole === 'Admin' && req.Status === 'Submitted') {
+                btnContainer.innerHTML = `
+                    <button type="button" class="btn btn-clinical-danger" onclick="submitReject(${req.Id})">
+                        <i class="bi bi-x-circle-fill"></i> Reject Request
+                    </button>
+                    <button type="button" class="btn btn-clinical-success" onclick="submitApprove(${req.Id})">
+                        <i class="bi bi-check-circle-fill"></i> Approve Sign-Off
+                    </button>
+                `;
+            } else if (currentRole === 'User Distribution' && req.Status === 'Approved By Admin') {
+                // If stock error, disable approve
+                let disabledAttr = hasStockError ? 'disabled title="Insufficient stock available"' : '';
+                btnContainer.innerHTML = `
+                    <button type="button" class="btn btn-clinical-danger" onclick="submitReject(${req.Id})">
+                        <i class="bi bi-x-circle-fill"></i> Reject Request
+                    </button>
+                    <button type="button" class="btn btn-clinical-success" ${disabledAttr} onclick="submitApprove(${req.Id})">
+                        <i class="bi bi-check-circle-fill"></i> Approve Distribution
+                    </button>
+                `;
+            } else if (currentRole === 'User Distribution' && req.Status === 'Fully Approved') {
+                btnContainer.innerHTML = `
+                    <button type="button" class="btn btn-clinical-success w-100" onclick="submitDeliver(${req.Id})">
+                        <i class="bi bi-truck"></i> Confirm Delivery Shipped
+                    </button>
+                `;
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('reviewModal'));
+            modal.show();
+        }
+
+        function submitApprove(id) {
+            const form = document.getElementById('approvalForm');
+            form.action = '/Approval/Approve';
+            form.submit();
+        }
+
+        function submitReject(id) {
+            const remarks = document.getElementById('actionRemarks').value.trim();
+            if (!remarks) {
+                document.getElementById('rejectRemarksWarning').style.display = 'block';
+                return;
+            }
+            
+            const form = document.getElementById('approvalForm');
+            form.action = '/Approval/Reject';
+            form.submit();
+        }
+
+        function submitDeliver(id) {
+            const form = document.getElementById('approvalForm');
+            form.action = '/Approval/MarkDelivered';
+            form.submit();
+        }
+    </script>
+}

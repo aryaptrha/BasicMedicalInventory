@@ -1,0 +1,289 @@
+@model List<InitialSetupMVC.Models.Request>
+@using InitialSetupMVC.Models
+@{
+    ViewData["Title"] = "Request Records";
+    var currentRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-0" style="font-weight: 700;">
+            @if (currentRole == "External User") { <text>My Requests</text> }
+            else { <text>Request Records</text> }
+        </h1>
+        <p class="text-secondary mb-0" style="font-size: 0.9rem;">Monitor submitted medicine requests, validation steps, and logistics dispatch status.</p>
+    </div>
+    @if (currentRole == "External User")
+    {
+        <div>
+            <a asp-controller="Request" asp-action="Create" class="btn btn-clinical">
+                <i class="bi bi-cart-plus"></i> Request Medicines
+            </a>
+        </div>
+    }
+</div>
+
+<!-- Request Table -->
+<div class="clinical-card">
+    <div class="clinical-table-wrapper">
+        <table class="clinical-table">
+            <thead>
+                <tr>
+                    <th>Request No.</th>
+                    @if (currentRole != "External User")
+                    {
+                        <th>Requestor</th>
+                    }
+                    <th>Request Date</th>
+                    <th>Status</th>
+                    <th style="text-align: right; width: 120px;">Qty Count</th>
+                    <th style="text-align: right; width: 160px;">Est. Value</th>
+                    <th style="text-align: right; width: 120px;">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    foreach (var req in Model)
+                    {
+                        var totalVal = req.Details.Sum(d => d.Qty * d.Price);
+                        <tr>
+                            <td class="font-monospace" style="font-weight: 600;">@req.RequestNumber</td>
+                            @if (currentRole != "External User")
+                            {
+                                <td>@req.UserFullName</td>
+                            }
+                            <td>@req.RequestDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                <span class="badge-solid @(
+                                    req.Status == "Delivered" || req.Status == "Fully Approved" ? "badge-success" :
+                                    req.Status.StartsWith("Rejected") ? "badge-danger" :
+                                    req.Status == "Submitted" || req.Status == "Approved By Admin" ? "badge-warning" : "badge-info"
+                                )">
+                                    <i class="bi @(
+                                        req.Status == "Delivered" ? "bi-truck" :
+                                        req.Status == "Fully Approved" ? "bi-check-circle" :
+                                        req.Status.StartsWith("Rejected") ? "bi-x-circle" : "bi-hourglass-split"
+                                    )"></i>
+                                    @req.Status
+                                </span>
+                            </td>
+                            <td style="text-align: right; font-weight: 500;">@req.Details.Sum(d => d.Qty)</td>
+                            <td style="text-align: right; font-weight: 700;">@totalVal.ToString("C2", new System.Globalization.CultureInfo("id-ID"))</td>
+                            <td style="text-align: right;">
+                                <button type="button" class="btn btn-clinical-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="viewDetails(@req.Id)">
+                                    <i class="bi bi-search"></i> Details
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="@(currentRole == "External User" ? 6 : 7)" class="text-center text-muted" style="padding: 24px;">No requests recorded.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="requestDetailsModal" tabindex="-1" aria-labelledby="requestDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="requestDetailsModalLabel" style="font-weight: 700;">Request Details: <span id="modalRequestNo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: grayscale(1) invert(0.5);"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-4">
+                <!-- Info Grid -->
+                <div class="row g-3">
+                    <div class="col-6 col-md-3">
+                        <span class="text-muted d-block" style="font-size: 0.75rem; font-weight: 600;">STATUS</span>
+                        <span id="modalStatusBadge"></span>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <span class="text-muted d-block" style="font-size: 0.75rem; font-weight: 600;">SUBMITTED DATE</span>
+                        <span id="modalRequestDate" style="font-size: 0.85rem; font-weight: 600;"></span>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <span class="text-muted d-block" style="font-size: 0.75rem; font-weight: 600;">REQUESTED BY</span>
+                        <span id="modalUserFullName" style="font-size: 0.85rem; font-weight: 600;"></span>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <span class="text-muted d-block" style="font-size: 0.75rem; font-weight: 600;">EST. VALUE</span>
+                        <span id="modalTotalValue" class="font-monospace" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-primary);"></span>
+                    </div>
+                </div>
+
+                <!-- Timeline / Log -->
+                <div class="p-3 border rounded" style="background-color: var(--bg-body); border-color: var(--border-color) !important;">
+                    <h6 class="mb-3" style="font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Approval Timeline</h6>
+                    <div class="row text-center g-2 position-relative">
+                        <!-- Step 1: Submit -->
+                        <div class="col-4">
+                            <i class="bi bi-file-earmark-arrow-up-fill fs-4 d-block text-success"></i>
+                            <span class="d-block mt-1" style="font-size: 0.75rem; font-weight: 700;">Submitted</span>
+                            <span class="text-muted d-block" id="timeSubmit" style="font-size: 0.65rem;"></span>
+                        </div>
+                        <!-- Step 2: Admin approval -->
+                        <div class="col-4">
+                            <i class="bi fs-4 d-block" id="iconAdmin"></i>
+                            <span class="d-block mt-1" style="font-size: 0.75rem; font-weight: 700;">Admin Sign-Off</span>
+                            <span class="text-muted d-block" id="timeAdmin" style="font-size: 0.65rem;"></span>
+                        </div>
+                        <!-- Step 3: Distribution approval/delivery -->
+                        <div class="col-4">
+                            <i class="bi fs-4 d-block" id="iconDist"></i>
+                            <span class="d-block mt-1" style="font-size: 0.75rem; font-weight: 700;">Delivered</span>
+                            <span class="text-muted d-block" id="timeDist" style="font-size: 0.65rem;"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items Breakdown -->
+                <div>
+                    <h6 class="mb-2" style="font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Items Breakdown</h6>
+                    <div class="border rounded overflow-hidden" style="border-color: var(--border-color) !important;">
+                        <table class="clinical-table mb-0">
+                            <thead>
+                                <tr style="background-color: var(--bg-body);">
+                                    <th>Medicine Name</th>
+                                    <th style="text-align: right; width: 100px;">Qty</th>
+                                    <th style="text-align: right; width: 130px;">Price</th>
+                                    <th style="text-align: right; width: 130px;">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalItemsBody">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Remarks -->
+                <div>
+                    <span class="text-muted d-block" style="font-size: 0.75rem; font-weight: 600;">REMARKS / HISTORY</span>
+                    <div id="modalRemarks" class="d-flex flex-column gap-2 mt-1" style="font-size: 0.85rem;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-clinical" data-bs-dismiss="modal">Close Receipt</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Render C# model dynamically into local JS array
+        const requests = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model));
+
+        function viewDetails(id) {
+            const req = requests.find(r => r.Id === id);
+            if (!req) return;
+
+            // Fill header info
+            document.getElementById('modalRequestNo').textContent = req.RequestNumber;
+            document.getElementById('modalRequestDate').textContent = new Date(req.RequestDate).toLocaleString();
+            document.getElementById('modalUserFullName').textContent = req.UserFullName;
+
+            // Fill remarks history
+            const remarksContainer = document.getElementById('modalRemarks');
+            remarksContainer.innerHTML = '';
+            if (req.Logs && req.Logs.length > 0) {
+                req.Logs.forEach(l => {
+                    const div = document.createElement('div');
+                    div.className = 'p-2 border rounded';
+                    div.style.backgroundColor = 'var(--bg-body)';
+                    div.style.borderColor = 'var(--border-color)';
+                    div.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong style="font-size: 0.8rem;">${l.ActionType} by ${l.ActionByName} (${l.ActionByRole})</strong>
+                            <span class="text-muted" style="font-size: 0.7rem;">${new Date(l.ActionDate).toLocaleDateString()}</span>
+                        </div>
+                        <p class="mb-0 text-secondary" style="font-size: 0.8rem;">${l.Remarks || 'No remarks provided.'}</p>
+                    `;
+                    remarksContainer.appendChild(div);
+                });
+            } else {
+                remarksContainer.textContent = 'No remarks recorded.';
+            }
+
+            // Status Badge
+            const badge = document.getElementById('modalStatusBadge');
+            badge.className = 'badge-solid ';
+            let badgeText = req.Status;
+            
+            if (req.Status === 'Delivered' || req.Status === 'Fully Approved') {
+                badge.className += 'badge-success';
+            } else if (req.Status.indexOf('Rejected') > -1) {
+                badge.className += 'badge-danger';
+            } else if (req.Status === 'Submitted' || req.Status === 'Approved By Admin') {
+                badge.className += 'badge-warning';
+            } else {
+                badge.className += 'badge-info';
+            }
+            badge.textContent = badgeText;
+
+            // Compute total price
+            let total = 0;
+            const itemsBody = document.getElementById('modalItemsBody');
+            itemsBody.innerHTML = '';
+
+            req.Details.forEach(d => {
+                const subtotal = d.Qty * d.Price;
+                total += subtotal;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${d.MedicineName}</td>
+                    <td style="text-align: right; font-weight: 500;">${d.Qty}</td>
+                    <td style="text-align: right; font-weight: 500;">Rp ${d.Price.toLocaleString('id-ID')}</td>
+                    <td style="text-align: right; font-weight: 700;">Rp ${subtotal.toLocaleString('id-ID')}</td>
+                `;
+                itemsBody.appendChild(tr);
+            });
+
+            document.getElementById('modalTotalValue').textContent = 'Rp ' + total.toLocaleString('id-ID', { minimumFractionDigits: 2 });
+
+            // Setup Timeline dates
+            document.getElementById('timeSubmit').textContent = new Date(req.RequestDate).toLocaleDateString();
+            
+            const timeAdminEl = document.getElementById('timeAdmin');
+            const iconAdminEl = document.getElementById('iconAdmin');
+            if (req.AdminApprovedAt) {
+                timeAdminEl.textContent = new Date(req.AdminApprovedAt).toLocaleDateString();
+                iconAdminEl.className = 'bi bi-shield-fill-check text-success';
+            } else if (req.Status === 'Rejected By Admin') {
+                timeAdminEl.textContent = 'Rejected';
+                iconAdminEl.className = 'bi bi-shield-fill-x text-danger';
+            } else {
+                timeAdminEl.textContent = 'Pending';
+                iconAdminEl.className = 'bi bi-shield text-muted';
+            }
+
+            const timeDistEl = document.getElementById('timeDist');
+            const iconDistEl = document.getElementById('iconDist');
+            if (req.DeliveredAt) {
+                timeDistEl.textContent = new Date(req.DeliveredAt).toLocaleDateString();
+                iconDistEl.className = 'bi bi-truck-flatbed text-success';
+            } else if (req.Status === 'Rejected By Distribution') {
+                timeDistEl.textContent = 'Rejected';
+                iconDistEl.className = 'bi bi-truck text-danger';
+            } else if (req.Status === 'Fully Approved') {
+                timeDistEl.textContent = 'Shipped/Ready';
+                iconDistEl.className = 'bi bi-check-circle-fill text-success';
+            } else {
+                timeDistEl.textContent = 'Pending';
+                iconDistEl.className = 'bi bi-truck text-muted';
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('requestDetailsModal'));
+            modal.show();
+        }
+    </script>
+}

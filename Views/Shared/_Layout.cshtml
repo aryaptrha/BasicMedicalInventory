@@ -1,0 +1,203 @@
+@using InitialSetupMVC.Models
+@using System.Text.Encodings.Web
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - MedInventory</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/InitialSetupMVC.styles.css" asp-append-version="true" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    @{
+        var currentRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+        var currentUserFullName = User.Identity?.Name ?? "";
+        var initials = string.Join("", currentUserFullName.Split(' ', System.StringSplitOptions.RemoveEmptyEntries).Select(n => n[0].ToString()).Take(2)).ToUpper();
+        var currentCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+        var currentAct = ViewContext.RouteData.Values["action"]?.ToString();
+    }
+    
+    <div class="dashboard-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <i class="bi bi-prescription2"></i>
+                <span>MedInventory</span>
+            </div>
+            
+            <ul class="sidebar-nav">
+                <!-- Dashboard (Visible to all) -->
+                <li class="sidebar-nav-item @(currentCtrl == "Dashboard" ? "active" : "")">
+                    <a class="sidebar-nav-link" asp-controller="Dashboard" asp-action="Index">
+                        <i class="bi bi-speedometer2"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                
+                <!-- Medicine Catalogue (Visible to Admin, External User for browse) -->
+                @if (currentRole == "Admin" || currentRole == "External User" || currentRole == "User Distribution")
+                {
+                    <li class="sidebar-nav-item @(currentCtrl == "Medicine" ? "active" : "")">
+                        <a class="sidebar-nav-link" asp-controller="Medicine" asp-action="Index">
+                            <i class="bi bi-boxes"></i>
+                            <span>Medicine Inventory</span>
+                        </a>
+                    </li>
+                }
+
+                <!-- Request Medicines Catalog/Cart (External User Only) -->
+                @if (currentRole == "External User")
+                {
+                    <li class="sidebar-nav-item @(currentCtrl == "Request" && currentAct == "Create" ? "active" : "")">
+                        <a class="sidebar-nav-link" asp-controller="Request" asp-action="Create">
+                            <i class="bi bi-cart-plus"></i>
+                            <span>Request Medicines</span>
+                        </a>
+                    </li>
+                }
+
+                <!-- Requests Board (Visible to All - label adapts) -->
+                <li class="sidebar-nav-item @(currentCtrl == "Request" && currentAct == "Index" ? "active" : "")">
+                    <a class="sidebar-nav-link" asp-controller="Request" asp-action="Index">
+                        <i class="bi bi-receipt"></i>
+                        <span>
+                            @if (currentRole == "External User") { <text>My Requests</text> }
+                            else { <text>Request Records</text> }
+                        </span>
+                    </a>
+                </li>
+
+                <!-- Approvals Dashboard (Admin & Distribution Only) -->
+                @if (currentRole == "Admin" || currentRole == "User Distribution")
+                {
+                    <li class="sidebar-nav-item @(currentCtrl == "Approval" ? "active" : "")">
+                        <a class="sidebar-nav-link" asp-controller="Approval" asp-action="Index">
+                            <i class="bi bi-clipboard2-check"></i>
+                            <span>Approval Queue</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+            
+            <div class="sidebar-footer">
+                <div>MedInventory Portal</div>
+                <div style="font-size: 0.7rem; margin-top: 4px; color: var(--text-muted);">ABC Corp &copy; 2026</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <header class="top-header">
+                <!-- Left Section: Mobile toggle and Active role info -->
+                <div class="d-flex align-items-center gap-3">
+                    <button class="mobile-toggle" id="sidebarCollapse" aria-label="Toggle Navigation">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+                
+                <!-- Right Section: Actions and Profile badge -->
+                <div class="header-actions">
+                    <!-- Profile Widget -->
+                    <div class="user-profile-badge">
+                        <div class="user-avatar">
+                            @initials
+                        </div>
+                        <div class="d-none d-sm-flex flex-column" style="line-height: 1.2; margin-right: 8px;">
+                            <span class="user-name">@currentUserFullName</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">@currentRole</span>
+                        </div>
+                        <a href="/Auth/Logout" class="btn-header" style="padding: 6px 8px;" title="Sign Out of System">
+                            <i class="bi bi-box-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Alerts for actions using SweetAlert -->
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: '@Html.Raw(JavaScriptEncoder.Default.Encode(TempData["SuccessMessage"].ToString()))',
+                            icon: 'success',
+                            confirmButtonColor: '#008080'
+                        });
+                    });
+                </script>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: '@Html.Raw(JavaScriptEncoder.Default.Encode(TempData["ErrorMessage"].ToString()))',
+                            icon: 'error',
+                            confirmButtonColor: '#008080'
+                        });
+                    });
+                </script>
+            }
+
+            <main role="main" class="page-container">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <!-- Mobile sidebar backdrop -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+
+    <!-- Script for Sidebar collapsing -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebarToggleBtn = document.getElementById('sidebarCollapse');
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+
+            function closeSidebar() {
+                sidebar.classList.remove('show');
+                backdrop.classList.remove('show');
+            }
+
+            function openSidebar() {
+                sidebar.classList.add('show');
+                backdrop.classList.add('show');
+            }
+            
+            // Mobile menu drawer
+            if (sidebarToggleBtn && sidebar) {
+                sidebarToggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (sidebar.classList.contains('show')) {
+                        closeSidebar();
+                    } else {
+                        openSidebar();
+                    }
+                });
+
+                if (backdrop) {
+                    backdrop.addEventListener('click', closeSidebar);
+                }
+
+                document.addEventListener('click', (e) => {
+                    if (sidebar.classList.contains('show') && !sidebar.contains(e.target) && e.target !== sidebarToggleBtn) {
+                        closeSidebar();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

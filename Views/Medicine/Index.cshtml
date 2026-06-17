@@ -1,0 +1,258 @@
+@model List<InitialSetupMVC.Models.Medicine>
+@using InitialSetupMVC.Models
+@{
+    ViewData["Title"] = "Medicine Inventory";
+    var currentRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    var today = DateTime.Today;
+    var hPlus7 = today.AddDays(7);
+}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-0" style="font-weight: 700;">Medicine Inventory</h1>
+        <p class="text-secondary mb-0" style="font-size: 0.9rem;">Manage corporate pharmaceutical supply, unit prices, and drug expiration timelines.</p>
+    </div>
+    <div>
+        @if (currentRole == "Admin")
+        {
+            <button type="button" class="btn btn-clinical" data-bs-toggle="modal" data-bs-target="#addMedicineModal">
+                <i class="bi bi-plus-lg"></i> Add Medicine
+            </button>
+        }
+        else
+        {
+            <button type="button" class="btn btn-clinical-outline" disabled title="Only Admins can manage inventory">
+                <i class="bi bi-lock-fill"></i> Add Medicine (Admin Only)
+            </button>
+        }
+    </div>
+</div>
+
+<!-- Inventory Data Table -->
+<div class="clinical-card">
+    <div class="clinical-table-wrapper">
+        <table class="clinical-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">ID</th>
+                    <th>Medicine Name</th>
+                    <th style="text-align: right; width: 120px;">Price</th>
+                    <th style="width: 150px;">Stock Level</th>
+                    <th style="width: 180px;">Expiration Date</th>
+                    <th>Created At</th>
+                    @if (currentRole == "Admin")
+                    {
+                        <th style="text-align: right; width: 160px;">Actions</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    foreach (var med in Model)
+                    {
+                        var isLowStock = med.StockQty < 10;
+                        var isOutOfStock = med.StockQty == 0;
+                        var isNearExpired = med.ExpiredDate <= hPlus7;
+
+                        <tr>
+                            <td class="text-muted font-monospace">#@med.Id</td>
+                            <td style="font-weight: 600;">@med.MedicineName</td>
+                            <td style="text-align: right; font-weight: 700;">@med.Price.ToString("C2", new System.Globalization.CultureInfo("id-ID"))</td>
+                            <td>
+                                @if (isOutOfStock)
+                                {
+                                    <span class="badge-solid badge-danger">
+                                        <i class="bi bi-x-octagon-fill"></i> Out of Stock (0)
+                                    </span>
+                                }
+                                else if (isLowStock)
+                                {
+                                    <span class="badge-solid badge-warning">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> Low Stock (@med.StockQty)
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge-solid badge-success">
+                                        <i class="bi bi-check-circle-fill"></i> Normal (@med.StockQty)
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                @if (isNearExpired)
+                                {
+                                    <span class="badge-solid badge-danger" title="Expiring in 7 days or less!">
+                                        <i class="bi bi-calendar-alert"></i> @med.ExpiredDate.ToString("yyyy-MM-dd")
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge-solid badge-success">
+                                        <i class="bi bi-calendar-check"></i> @med.ExpiredDate.ToString("yyyy-MM-dd")
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-muted">@med.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            @if (currentRole == "Admin")
+                            {
+                                <td style="text-align: right;">
+                                    <button type="button" class="btn btn-clinical-outline" style="padding: 4px 8px; font-size: 0.75rem;" 
+                                            onclick="openEditModal(@med.Id, '@Html.Raw(med.MedicineName)', @med.StockQty, @med.Price.ToString(System.Globalization.CultureInfo.InvariantCulture), '@med.ExpiredDate.ToString("yyyy-MM-dd")')">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </button>
+                                    <button type="button" class="btn btn-clinical-danger" style="padding: 4px 8px; font-size: 0.75rem;" 
+                                            onclick="openDeleteModal(@med.Id, '@Html.Raw(med.MedicineName)')">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted" style="padding: 24px;">No medicines registered. Click 'Add Medicine' above.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Medicine Modal -->
+@if (currentRole == "Admin")
+{
+    <div class="modal fade" id="addMedicineModal" tabindex="-1" aria-labelledby="addMedicineModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-controller="Medicine" asp-action="Create" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addMedicineModalLabel" style="font-weight: 700;">Add New Medicine</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: grayscale(1) invert(0.5);"></button>
+                    </div>
+                    <div class="modal-body d-flex flex-column gap-3">
+                        <div>
+                            <label class="form-label" for="add_medName">Medicine Name</label>
+                            <input type="text" class="form-control w-100" id="add_medName" name="medicineName" required placeholder="e.g. Paracetamol 500mg" />
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <label class="form-label" for="add_stock">Initial Stock</label>
+                                <input type="number" class="form-control w-100" id="add_stock" name="stockQty" min="0" required placeholder="e.g. 100" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="add_price">Price (IDR)</label>
+                                <input type="number" class="form-control w-100" id="add_price" name="price" min="0" step="1" required placeholder="e.g. 15000" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label" for="add_exp">Expiration Date</label>
+                            <input type="date" class="form-control w-100" id="add_exp" name="expiredDate" required value="@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-clinical-outline" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn-clinical">Save Medicine</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Medicine Modal -->
+    <div class="modal fade" id="editMedicineModal" tabindex="-1" aria-labelledby="editMedicineModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-controller="Medicine" asp-action="Edit" method="post">
+                    <input type="hidden" id="edit_id" name="id" />
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editMedicineModalLabel" style="font-weight: 700;">Edit Medicine Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: grayscale(1) invert(0.5);"></button>
+                    </div>
+                    <div class="modal-body d-flex flex-column gap-3">
+                        <div>
+                            <label class="form-label" for="edit_medName">Medicine Name</label>
+                            <input type="text" class="form-control w-100" id="edit_medName" name="medicineName" required />
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <label class="form-label" for="edit_stock">Stock Quantity</label>
+                                <input type="number" class="form-control w-100" id="edit_stock" name="stockQty" min="0" required />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="edit_price">Price (IDR)</label>
+                                <input type="number" class="form-control w-100" id="edit_price" name="price" min="0" step="1" required />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label" for="edit_exp">Expiration Date</label>
+                            <input type="date" class="form-control w-100" id="edit_exp" name="expiredDate" required />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-clinical-outline" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn-clinical">Update Medicine</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Medicine Modal -->
+    <div class="modal fade" id="deleteMedicineModal" tabindex="-1" aria-labelledby="deleteMedicineModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <form asp-controller="Medicine" asp-action="Delete" method="post">
+                    <input type="hidden" id="delete_id" name="id" />
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="deleteMedicineModalLabel" style="font-weight: 700;">Delete Medicine</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: grayscale(1) invert(0.5);"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-0">Are you sure you want to delete <strong id="delete_name"></strong> from the inventory system?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-clinical-outline" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn-clinical-danger">Confirm Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        function openEditModal(id, name, stock, price, expDate) {
+            document.getElementById('edit_id').value = id;
+            document.getElementById('edit_medName').value = name;
+            document.getElementById('edit_stock').value = stock;
+            document.getElementById('edit_price').value = Math.round(price);
+            
+            // Format expiration date string properly
+            if (expDate) {
+                // Ensure date is yyyy-MM-dd
+                const dateParts = expDate.split(' ');
+                const parsedDate = new Date(dateParts[0]);
+                if (!isNaN(parsedDate)) {
+                    const formatted = parsedDate.toISOString().split('T')[0];
+                    document.getElementById('edit_exp').value = formatted;
+                }
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('editMedicineModal'));
+            modal.show();
+        }
+
+        function openDeleteModal(id, name) {
+            document.getElementById('delete_id').value = id;
+            document.getElementById('delete_name').textContent = name;
+            
+            const modal = new bootstrap.Modal(document.getElementById('deleteMedicineModal'));
+            modal.show();
+        }
+    </script>
+}

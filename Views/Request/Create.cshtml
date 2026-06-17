@@ -1,0 +1,249 @@
+@model List<InitialSetupMVC.Models.Medicine>
+@{
+    ViewData["Title"] = "Request Medicines";
+}
+
+<!-- Page Header -->
+<div class="mb-4">
+    <h1 class="h3 mb-0" style="font-weight: 700;">Request Medicines</h1>
+    <p class="text-secondary mb-0" style="font-size: 0.9rem;">Browse available pharmaceutical catalog, adjust quantities, and submit a distribution request.</p>
+</div>
+
+<!-- Split Catalog / Cart Layout -->
+<div class="row g-4">
+    <!-- Medicine Catalog -->
+    <div class="col-12 col-lg-8">
+        <div class="clinical-card h-100">
+            <h3 class="h6 mb-3" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Available Catalog</h3>
+            
+            <div class="row g-3">
+                @foreach (var med in Model)
+                {
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 border rounded d-flex flex-column justify-content-between h-100" style="background-color: var(--bg-body); border-color: var(--border-color) !important;">
+                            <div>
+                                <h4 class="h6 mb-1" style="font-weight: 700;">@med.MedicineName</h4>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <span class="badge-solid badge-info" style="font-size: 0.7rem; padding: 2px 6px;">
+                                        Stock: @med.StockQty
+                                    </span>
+                                    <span class="badge-solid badge-success" style="font-size: 0.7rem; padding: 2px 6px;">
+                                        Exp: @med.ExpiredDate.ToString("yyyy-MM-dd")
+                                    </span>
+                                </div>
+                                <div class="h5 mb-3 font-monospace" style="font-weight: 700; color: var(--accent-primary);">
+                                    @med.Price.ToString("C2", new System.Globalization.CultureInfo("id-ID"))
+                                </div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-clinical btn-sm w-100" 
+                                    onclick="addToCart(@med.Id, '@Html.Raw(med.MedicineName)', @med.Price.ToString(System.Globalization.CultureInfo.InvariantCulture), @med.StockQty)">
+                                <i class="bi bi-cart-plus-fill"></i> Add to Request
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Request Cart Drawer -->
+    <div class="col-12 col-lg-4">
+        <div class="clinical-card position-sticky" style="top: var(--header-height) + 20px;">
+            <h3 class="h6 mb-3" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Request Cart</h3>
+            
+            <!-- Cart Items list -->
+            <div id="cartItemsList" class="d-flex flex-column gap-2 mb-3" style="max-height: 250px; overflow-y: auto;">
+            </div>
+
+            <!-- Empty Cart Message -->
+            <div class="text-center text-muted p-4 border rounded border-dashed mb-3" id="emptyCartMessage" style="border-style: dashed !important; border-color: var(--border-color) !important;">
+                <i class="bi bi-cart2 d-block fs-3 mb-2" style="color: var(--text-muted);"></i>
+                No medicines selected yet.
+            </div>
+
+            <!-- Remarks -->
+            <div class="mb-3">
+                <label for="cartRemarks" class="form-label">Submission Remarks</label>
+                <textarea class="form-control w-100" id="cartRemarks" rows="3" placeholder="Explain the purpose of this request..."></textarea>
+            </div>
+
+            <!-- Total Valuation -->
+            <div class="d-flex justify-content-between align-items-center py-2 border-top border-bottom mb-3" style="border-color: var(--border-color) !important;">
+                <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Estimated Value:</span>
+                <span id="cartTotalValue" class="h6 mb-0 font-monospace" style="font-weight: 700; color: var(--accent-primary);">Rp 0,00</span>
+            </div>
+
+            <button type="button" id="submitRequestBtn" class="btn btn-clinical w-100" disabled onclick="submitRequest()">
+                <i class="bi bi-send-fill"></i> Submit Request
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const cart = [];
+
+        function addToCart(id, name, price, stock) {
+            const existing = cart.find(item => item.id === id);
+            if (existing) {
+                if (existing.qty < stock) {
+                    existing.qty += 1;
+                } else {
+                    Swal.fire({
+                        title: 'Stock Limit Reached',
+                        text: 'Cannot add more units of ' + name + '. Max available stock reached.',
+                        icon: 'warning',
+                        confirmButtonColor: '#008080'
+                    });
+                }
+            } else {
+                cart.push({ id, name, price, stock, qty: 1 });
+            }
+            renderCart();
+        }
+
+        function removeFromCart(id) {
+            const index = cart.findIndex(item => item.id === id);
+            if (index > -1) {
+                cart.splice(index, 1);
+            }
+            renderCart();
+        }
+
+        function updateQty(id, newQty) {
+            const item = cart.find(item => item.id === id);
+            if (item) {
+                item.qty = parseInt(newQty) || 0;
+                
+                // Live validations
+                const errElement = document.getElementById('error-qty-' + id);
+                if (item.qty <= 0) {
+                    errElement.textContent = 'Qty must be > 0';
+                    errElement.style.display = 'block';
+                } else if (item.qty > item.stock) {
+                    errElement.textContent = 'Exceeds stock (' + item.stock + ')';
+                    errElement.style.display = 'block';
+                } else {
+                    errElement.style.display = 'none';
+                }
+            }
+            updateTotal();
+            checkSubmitButton();
+        }
+
+        function renderCart() {
+            const listContainer = document.getElementById('cartItemsList');
+            const emptyMsg = document.getElementById('emptyCartMessage');
+            
+            // Clear prior list
+            listContainer.innerHTML = '';
+            
+            if (cart.length === 0) {
+                emptyMsg.style.display = 'block';
+                document.getElementById('submitRequestBtn').disabled = true;
+                document.getElementById('cartTotalValue').textContent = 'Rp 0,00';
+                return;
+            }
+
+            emptyMsg.style.display = 'none';
+
+            cart.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'cart-item flex-column align-items-stretch';
+                itemDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center w-100">
+                        <div>
+                            <span class="cart-item-name">${item.name}</span>
+                            <span class="d-block text-muted" style="font-size: 0.75rem;">
+                                Rp ${item.price.toLocaleString('id-ID')} / unit
+                            </span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="number" class="form-control cart-item-qty-input" 
+                                   value="${item.qty}" min="1" max="${item.stock}" 
+                                   onchange="updateQty(${item.id}, this.value)" 
+                                   onkeyup="updateQty(${item.id}, this.value)" />
+                            <button type="button" class="btn btn-sm text-danger" style="background:none; border:none;" onclick="removeFromCart(${item.id})">
+                                <i class="bi bi-trash-fill"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-danger mt-1" style="font-size: 0.7rem; display:none; font-weight:600;" id="error-qty-${item.id}"></div>
+                `;
+                listContainer.appendChild(itemDiv);
+            });
+
+            updateTotal();
+            checkSubmitButton();
+        }
+
+        function updateTotal() {
+            let total = 0;
+            cart.forEach(item => {
+                if (item.qty > 0 && item.qty <= item.stock) {
+                    total += item.qty * item.price;
+                }
+            });
+            document.getElementById('cartTotalValue').textContent = 'Rp ' + total.toLocaleString('id-ID', { minimumFractionDigits: 2 });
+        }
+
+        function checkSubmitButton() {
+            const hasErrors = cart.some(item => item.qty <= 0 || item.qty > item.stock);
+            document.getElementById('submitRequestBtn').disabled = hasErrors || cart.length === 0;
+        }
+
+        function submitRequest() {
+            const submitBtn = document.getElementById('submitRequestBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
+
+            const payload = {
+                remarks: document.getElementById('cartRemarks').value,
+                items: cart.map(item => ({ medicineId: item.id, qty: item.qty }))
+            };
+
+            fetch('/Request/SubmitRequest', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: 'Success!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonColor: '#008080'
+                    }).then(() => {
+                        cart.length = 0; // Clear array
+                        window.location.href = '/Request/Index';
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Submission Error',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonColor: '#008080'
+                    });
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-send-fill"></i> Submit Request';
+                }
+            })
+            .catch(err => {
+                Swal.fire({
+                    title: 'Submission Failed',
+                    text: 'Check connection or server state.',
+                    icon: 'error',
+                    confirmButtonColor: '#008080'
+                });
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-send-fill"></i> Submit Request';
+            });
+        }
+    </script>
+}
