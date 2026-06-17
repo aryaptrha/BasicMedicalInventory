@@ -243,7 +243,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     INSERT INTO Medicines (MedicineName, StockQty, Price, ExpiredDate, CreatedAt)
-    VALUES (@MedicineName, @StockQty, @Price, @ExpiredDate, GETDATE());
+    VALUES (@MedicineName, @StockQty, @Price, @ExpiredDate, GETUTCDATE());
 END
 GO
 
@@ -261,7 +261,7 @@ BEGIN
         StockQty = @StockQty, 
         Price = @Price, 
         ExpiredDate = @ExpiredDate, 
-        UpdatedAt = GETDATE()
+        UpdatedAt = GETUTCDATE()
     WHERE Id = @Id;
 END
 GO
@@ -330,7 +330,7 @@ BEGIN
         
         -- Insert Request Header
         INSERT INTO Requests (RequestNumber, UserId, Status, RequestDate)
-        VALUES (@RequestNumber, @UserId, @Status, GETDATE());
+        VALUES (@RequestNumber, @UserId, @Status, GETUTCDATE());
         
         SET @RequestId = SCOPE_IDENTITY();
         
@@ -341,7 +341,7 @@ BEGIN
         
         -- Insert Initial Log
         INSERT INTO ApprovalLogs (RequestId, ActionBy, ActionType, Remarks, ActionDate)
-        VALUES (@RequestId, @ActionBy, @ActionType, @Remarks, GETDATE());
+        VALUES (@RequestId, @ActionBy, @ActionType, @Remarks, GETUTCDATE());
         
         COMMIT TRANSACTION;
         
@@ -379,7 +379,7 @@ BEGIN
 
         -- Log Action
         INSERT INTO ApprovalLogs (RequestId, ActionBy, ActionType, Remarks, ActionDate)
-        VALUES (@RequestId, @ActionBy, @ActionType, @Remarks, GETDATE());
+        VALUES (@RequestId, @ActionBy, @ActionType, @Remarks, GETUTCDATE());
 
         COMMIT TRANSACTION;
     END TRY
@@ -435,7 +435,7 @@ BEGIN
         -- 2. Update Request Status
         UPDATE Requests
         SET Status = @Status,
-            AdminApprovedAt = CASE WHEN @Status = 'Approved By Admin' THEN GETDATE() ELSE AdminApprovedAt END,
+            AdminApprovedAt = CASE WHEN @Status = 'Approved By Admin' THEN GETUTCDATE() ELSE AdminApprovedAt END,
             DistributionApprovedAt = @DistributionApprovedAt
         WHERE Id = @RequestId;
 
@@ -448,7 +448,7 @@ BEGIN
 
         -- 4. Log Action
         INSERT INTO ApprovalLogs (RequestId, ActionBy, ActionType, Remarks, ActionDate)
-        VALUES (@RequestId, @ActionBy, @ActionType, @Remarks, GETDATE());
+        VALUES (@RequestId, @ActionBy, @ActionType, @Remarks, GETUTCDATE());
 
         COMMIT TRANSACTION;
     END TRY

@@ -69,7 +69,7 @@ namespace InitialSetupMVC.Services
 
                 log.ActionType = "Distribution Approved";
                 // Since stock was already deducted by Admin, just update the status to Fully Approved
-                _requestRepo.UpdateStatus(requestId, "Fully Approved", null, DateTime.Now, null, log);
+                _requestRepo.UpdateStatus(requestId, "Fully Approved", null, DateTime.UtcNow, null, log);
             }
             else
             {
@@ -151,7 +151,7 @@ namespace InitialSetupMVC.Services
                 Remarks = string.IsNullOrWhiteSpace(remarks) ? "Medicines delivered to requestor." : remarks.Trim()
             };
 
-            _requestRepo.UpdateStatus(requestId, "Delivered", null, null, DateTime.Now, log);
+            _requestRepo.UpdateStatus(requestId, "Delivered", null, null, DateTime.UtcNow, log);
         }
     }
 }

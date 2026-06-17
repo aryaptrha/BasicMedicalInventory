@@ -80,7 +80,7 @@ namespace InitialSetupMVC.Services
                 UserId = userId,
                 UserFullName = userFullName,
                 Status = "Submitted",
-                RequestDate = DateTime.Now,
+                RequestDate = DateTime.UtcNow,
                 Details = details
             };
 

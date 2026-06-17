@@ -12,6 +12,6 @@ namespace InitialSetupMVC.Models
         public string RequestNumber { get; set; } = string.Empty;
         public string ActionType { get; set; } = string.Empty; // e.g. "Submit", "Admin Approved", "Distribution Approved", "Delivered"
         public string Remarks { get; set; } = string.Empty;
-        public DateTime ActionDate { get; set; } = DateTime.Now;
+        public DateTime ActionDate { get; set; } = DateTime.UtcNow;
     }
 }
