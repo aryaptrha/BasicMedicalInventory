@@ -52,7 +52,7 @@
                                 <tr>
                                     <td class="font-monospace" style="font-weight: 600;">@req.RequestNumber</td>
                                     <td>@req.UserFullName</td>
-                                    <td>@req.RequestDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@req.RequestDate.AddHours(7).ToString("yyyy-MM-dd HH:mm")</td>
                                     <td>
                                         <span class="badge-solid @(req.Status == "Submitted" ? "badge-warning" : "badge-info")">
                                             <i class="bi bi-hourglass-split"></i> @req.Status
@@ -106,7 +106,7 @@
                                 <span class="badge-solid @badgeColor" style="font-size: 0.65rem; padding: 2px 6px;">
                                     <i class="bi @iconClass"></i> @log.ActionType
                                 </span>
-                                <span class="text-muted" style="font-size: 0.7rem;">@log.ActionDate.ToString("MM-dd HH:mm")</span>
+                                <span class="text-muted" style="font-size: 0.7rem;">@log.ActionDate.AddHours(7).ToString("MM-dd HH:mm")</span>
                             </div>
                             <div class="mb-1" style="font-weight: 600;">Request: #@log.RequestNumber</div>
                             <div class="mb-1 text-secondary">By: <strong>@log.ActionByName</strong> (@log.ActionByRole)</div>
@@ -140,15 +140,15 @@
             <div class="modal-body d-flex flex-column gap-3">
                 <!-- Requestor Meta -->
                 <div class="row g-2 p-2 border rounded" style="background-color: var(--bg-body); border-color: var(--border-color) !important; font-size: 0.8rem;">
-                    <div class="col-4">
+                    <div class="col-12 col-sm-4">
                         <span class="text-muted d-block" style="font-size: 0.7rem; font-weight:600;">REQUESTOR</span>
                         <strong id="revUserFullName"></strong>
                     </div>
-                    <div class="col-4">
+                    <div class="col-12 col-sm-4">
                         <span class="text-muted d-block" style="font-size: 0.7rem; font-weight:600;">SUBMIT DATE</span>
                         <strong id="revRequestDate"></strong>
                     </div>
-                    <div class="col-4">
+                    <div class="col-12 col-sm-4">
                         <span class="text-muted d-block" style="font-size: 0.7rem; font-weight:600;">ESTIMATED VALUE</span>
                         <strong id="revTotalValue" class="font-monospace" style="color: var(--accent-primary);"></strong>
                     </div>

@@ -189,7 +189,7 @@ namespace InitialSetupMVC.Repositories
                     ActionByRole = reader.GetString("ActionByRole"),
                     ActionType = reader.GetString("ActionType"),
                     Remarks = reader.IsDBNull(reader.GetOrdinal("Remarks")) ? string.Empty : reader.GetString("Remarks"),
-                    ActionDate = reader.GetDateTime("ActionDate")
+                    ActionDate = DateTime.SpecifyKind(reader.GetDateTime("ActionDate"), DateTimeKind.Utc)
                 });
             }
             return logs;
@@ -204,10 +204,10 @@ namespace InitialSetupMVC.Repositories
                 UserId = reader.GetInt64("UserId"),
                 UserFullName = reader.GetString("UserFullName"),
                 Status = reader.GetString("Status"),
-                RequestDate = reader.GetDateTime("RequestDate"),
-                AdminApprovedAt = reader.IsDBNull(reader.GetOrdinal("AdminApprovedAt")) ? null : reader.GetDateTime("AdminApprovedAt"),
-                DistributionApprovedAt = reader.IsDBNull(reader.GetOrdinal("DistributionApprovedAt")) ? null : reader.GetDateTime("DistributionApprovedAt"),
-                DeliveredAt = reader.IsDBNull(reader.GetOrdinal("DeliveredAt")) ? null : reader.GetDateTime("DeliveredAt")
+                RequestDate = DateTime.SpecifyKind(reader.GetDateTime("RequestDate"), DateTimeKind.Utc),
+                AdminApprovedAt = reader.IsDBNull(reader.GetOrdinal("AdminApprovedAt")) ? null : DateTime.SpecifyKind(reader.GetDateTime("AdminApprovedAt"), DateTimeKind.Utc),
+                DistributionApprovedAt = reader.IsDBNull(reader.GetOrdinal("DistributionApprovedAt")) ? null : DateTime.SpecifyKind(reader.GetDateTime("DistributionApprovedAt"), DateTimeKind.Utc),
+                DeliveredAt = reader.IsDBNull(reader.GetOrdinal("DeliveredAt")) ? null : DateTime.SpecifyKind(reader.GetDateTime("DeliveredAt"), DateTimeKind.Utc)
             };
         }
 
@@ -223,7 +223,7 @@ namespace InitialSetupMVC.Repositories
                 ActionByRole = reader.GetString("ActionByRole"),
                 ActionType = reader.GetString("ActionType"),
                 Remarks = reader.IsDBNull(reader.GetOrdinal("Remarks")) ? string.Empty : reader.GetString("Remarks"),
-                ActionDate = reader.GetDateTime("ActionDate")
+                ActionDate = DateTime.SpecifyKind(reader.GetDateTime("ActionDate"), DateTimeKind.Utc)
             };
         }
     }

@@ -98,9 +98,9 @@ namespace InitialSetupMVC.Repositories
                 MedicineName = reader.GetString("MedicineName"),
                 StockQty = reader.GetInt32("StockQty"),
                 Price = reader.GetDecimal("Price"),
-                ExpiredDate = reader.GetDateTime("ExpiredDate"),
-                CreatedAt = reader.GetDateTime("CreatedAt"),
-                UpdatedAt = reader.IsDBNull(reader.GetOrdinal("UpdatedAt")) ? null : reader.GetDateTime("UpdatedAt")
+                ExpiredDate = DateTime.SpecifyKind(reader.GetDateTime("ExpiredDate"), DateTimeKind.Utc),
+                CreatedAt = DateTime.SpecifyKind(reader.GetDateTime("CreatedAt"), DateTimeKind.Utc),
+                UpdatedAt = reader.IsDBNull(reader.GetOrdinal("UpdatedAt")) ? null : DateTime.SpecifyKind(reader.GetDateTime("UpdatedAt"), DateTimeKind.Utc)
             };
         }
     }

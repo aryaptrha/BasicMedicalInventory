@@ -36,7 +36,7 @@ namespace InitialSetupMVC.Repositories
                     RoleId = reader.GetInt64("RoleId"),
                     RoleName = reader.GetString("RoleName"),
                     IsActive = reader.GetBoolean("IsActive"),
-                    CreatedAt = reader.GetDateTime("CreatedAt")
+                    CreatedAt = DateTime.SpecifyKind(reader.GetDateTime("CreatedAt"), DateTimeKind.Utc)
                 };
             }
 

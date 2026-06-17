@@ -94,7 +94,7 @@
                                     </span>
                                 }
                             </td>
-                            <td class="text-muted">@med.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td class="text-muted">@med.CreatedAt.AddHours(7).ToString("yyyy-MM-dd HH:mm")</td>
                             @if (currentRole == "Admin")
                             {
                                 <td style="text-align: right;">
